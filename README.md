@@ -26,6 +26,8 @@ python data_script/vist_img_download.py
 --json_dir /path/to/dii_json_files
 --img_dir /path/to/save_images
 --num_process 32
+
+python data_script/vist_img_download.py --json_dir input_data/dii --img_dir input_data/visit_img --num_process 32 --save_path output_data
 ```
 * To accelerate I/O, using the following scrips to convert your downloaded data to HDF5
 ```shell
@@ -42,6 +44,8 @@ python data_script/vist_hdf5.py
 --dii_json_dir /path/to/dii_json_files
 --img_dir /path/to/vist_images
 --save_path /path/to/save_hdf5_file
+
+python data_script/vist_hdf5.py --sis_json_dir ./input_data/sis --dii_json_dir ./input_data/dii --img_dir input_data/visit_img --save_path output_data/visit_out.h5
  ```
 
 ## Training
