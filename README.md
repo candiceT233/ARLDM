@@ -15,6 +15,7 @@ git clone https://github.com/Flash-321/ARLDM.git
 cd ARLDM
 pip install -r requirements.txt
 ```
+
 ## Data Preparation
 * Download the PororoSV dataset [here](https://drive.google.com/file/d/11Io1_BufAayJ1BpdxxV2uJUvCcirbrNc/view?usp=sharing).
 * Download the FlintstonesSV dataset [here](https://drive.google.com/file/d/1kG4esNwabJQPWqadSDaugrlF4dRaV33_/view?usp=sharing).
@@ -46,6 +47,8 @@ python data_script/vist_hdf5.py
 --save_path /path/to/save_hdf5_file
 
 python data_script/vist_hdf5.py --sis_json_dir ./input_data/sis --dii_json_dir ./input_data/dii --img_dir input_data/visit_img --save_path output_data/visit_out.h5
+
+python data_script/pororo_hdf5.py --data_dir ./input_data/pororo_png --save_path /mnt/ssd/mtang11/arldm/output_data/pororo_out.h5
  ```
 
 ## Training
