@@ -13,9 +13,10 @@ from omegaconf import DictConfig
 from pl_bolts.optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_lightning.strategies import DDPStrategy
+from pytorch_lightning.strategies import DDPStrategy # >=1.7.0
+# from pytorch_lightning.plugins import DDPPlugin
 from torch import nn
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader # TODO: check possible to use h5py
 from torchvision import transforms
 from transformers import CLIPTokenizer, CLIPTextModel
 
@@ -24,14 +25,58 @@ from models.blip_override.blip import blip_feature_extractor, init_tokenizer
 from models.diffusers_override.unet_2d_condition import UNet2DConditionModel
 from models.inception import InceptionV3
 
+# for evaluation I/O time
+import time
+
+# import gc
+# gc.collect()
+
+# import torch.distributed as dist
+# dist.init_process_group(
+#             backend="gloo",
+#             init_method="tcp://localhost:22234"
+#             rank=0)
+
+
+DEVICE="cpu"
+
+
+def humansize(nbytes):
+    if nbytes != 0:
+        suffixes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+        i = 0
+        while nbytes >= 1000 and i < len(suffixes)-1:
+            nbytes /= 1000.
+            i += 1
+        f = ('%.2f' % nbytes).rstrip('0').rstrip('.')
+
+        return '%s %s' % (f, suffixes[i])
+    else:
+        return 0
+
+import subprocess
+def check_gpu_mem(logger):
+    # logger.info(f"Checking GPU usage ...")
+    print(f"Checking GPU usage ...")
+    command = "nvidia-smi -l 10 &"
+    
+    print(f"cmd: {command}")
+    subprocess.call(command, shell=True)
+
+if DEVICE == "gpu":
+    global_free_gpu, total_gpu_mem = torch.cuda.mem_get_info()
+    print("global_free_gpu: ", humansize(global_free_gpu), ", total_gpu_mem: ", humansize(total_gpu_mem))
+    torch.cuda.empty_cache()
+    torch.set_float32_matmul_precision('medium')
 
 class LightningDataset(pl.LightningDataModule):
     def __init__(self, args: DictConfig):
         super(LightningDataset, self).__init__()
-        self.kwargs = {"num_workers": args.num_workers, "persistent_workers": True if args.num_workers > 0 else False,
-                       "pin_memory": True}
+        # self.kwargs = {"num_workers": args.num_workers, "persistent_workers": True if args.num_workers > 0 else False,
+        #                "pin_memory": True}
+        self.kwargs = {"num_workers": args.num_workers, "pin_memory": True}
         self.args = args
-
+    
     def setup(self, stage="fit"):
         if self.args.dataset == "pororo":
             import datasets.pororo as data
@@ -44,11 +89,13 @@ class LightningDataset(pl.LightningDataModule):
         else:
             raise ValueError("Unknown dataset: {}".format(self.args.dataset))
         if stage == "fit":
+            print("Loading train_data data in stage fit ...")
             self.train_data = data.StoryDataset("train", self.args)
+            print("Loading val_data data in stage fit ...")
             self.val_data = data.StoryDataset("val", self.args)
         if stage == "test":
             self.test_data = data.StoryDataset("test", self.args)
-
+        
     def train_dataloader(self):
         if not hasattr(self, 'trainloader'):
             self.trainloader = DataLoader(self.train_data, batch_size=self.args.batch_size, shuffle=True, **self.kwargs)
@@ -303,7 +350,8 @@ class ARLDM(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         loss = self(batch)
-        self.log('loss/train_loss', loss, on_step=True, on_epoch=False, sync_dist=True, prog_bar=True)
+        # self.log('loss/train_loss', loss, on_step=True, on_epoch=False, sync_dist=True, prog_bar=True)
+        self.log('loss/train_loss', loss, on_step=False, on_epoch=True, sync_dist=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -390,16 +438,38 @@ class ARLDM(pl.LightningModule):
         return pred.reshape(-1, 2048)
 
 
-def train(args: DictConfig) -> None:
+# method to load all data
+def load_data(args: DictConfig) -> None:
+    start_time_seconds = time.time()
+    
     dataloader = LightningDataset(args)
     dataloader.setup('fit')
+    dataloader.setup('test')
+    
+    end_time_seconds = time.time()
+    print("Import data start time:", start_time_seconds)
+    print("Import data end time:", end_time_seconds)
+    # Calculate the time difference
+    time_elapsed = end_time_seconds - start_time_seconds
+    # Calculate minutes and seconds from the time difference
+    minutes_elapsed = int(time_elapsed // 60)
+    seconds_elapsed = int(time_elapsed % 60)
+    print(f"Time elapsed: {time_elapsed:.2f} seconds ({minutes_elapsed} minutes and {seconds_elapsed} seconds)")
+    exit()
+
+def train(args: DictConfig) -> None:
+    
+    dataloader = LightningDataset(args)
+    dataloader.setup('fit')
+
     model = ARLDM(args, steps_per_epoch=dataloader.get_length_of_train_dataloader())
 
     logger = TensorBoardLogger(save_dir=os.path.join(args.ckpt_dir, args.run_name), name='log', default_hp_metric=False)
 
     checkpoint_callback = ModelCheckpoint(
         dirpath=os.path.join(args.ckpt_dir, args.run_name),
-        save_top_k=0,
+        # save_top_k=0,
+        save_top_k=1,
         save_last=True
     )
 
@@ -408,15 +478,22 @@ def train(args: DictConfig) -> None:
     callback_list = [lr_monitor, checkpoint_callback]
 
     trainer = pl.Trainer(
-        accelerator='gpu',
-        devices=args.gpu_ids,
+        accelerator=DEVICE,
+        devices=args.num_workers,
+        # devices=args.gpu_ids,
+        # gpus=args.num_workers,
         max_epochs=args.max_epochs,
         benchmark=True,
         logger=logger,
         log_every_n_steps=1,
         callbacks=callback_list,
-        strategy=DDPStrategy(find_unused_parameters=False)
+        strategy=DDPStrategy(find_unused_parameters=False),
+        fast_dev_run=5,
+        # plugins=DDPPlugin(find_unused_parameters=False),
     )
+    
+    # check_gpu_mem(logger)
+    
     trainer.fit(model, dataloader, ckpt_path=args.train_model_file)
 
 
@@ -451,6 +528,10 @@ def sample(args: DictConfig) -> None:
 
 
 @hydra.main(config_path=".", config_name="config")
+
+# from omegaconf import OmegaConf
+# args= OmegaConf.load('config.yaml')
+
 def main(args: DictConfig) -> None:
     pl.seed_everything(args.seed)
     if args.num_cpu_cores > 0:
@@ -458,6 +539,7 @@ def main(args: DictConfig) -> None:
 
     if args.mode == 'train':
         train(args)
+        # load_data(args)
     elif args.mode == 'sample':
         sample(args)
 
