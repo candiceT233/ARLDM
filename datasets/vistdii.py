@@ -51,8 +51,13 @@ class StoryDataset(Dataset):
         self.h5 = h5[self.subset]
 
     def __getitem__(self, index):
-        if not hasattr(self, 'h5'):
-            self.open_h5()
+        # if not hasattr(self, 'h5'):
+        #     self.open_h5()
+        
+        if hasattr(self, 'h5'):
+            Exception("h5 file not opened")
+        h5 = h5py.File(self.h5_file, "r")
+        self.h5 = h5[self.subset]
 
         images = list()
         for i in range(5):
@@ -89,6 +94,12 @@ class StoryDataset(Dataset):
         return images, captions, attention_mask, source_images, source_caption, source_attention_mask
 
     def __len__(self):
-        if not hasattr(self, 'h5'):
-            self.open_h5()
+        # if not hasattr(self, 'h5'):
+        #     self.open_h5()
+        # return len(self.h5['text'])
+
+        if hasattr(self, 'h5'):
+            Exception("h5 file not opened")
+        h5 = h5py.File(self.h5_file, "r")
+        self.h5 = h5[self.subset]
         return len(self.h5['dii'])
