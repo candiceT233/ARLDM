@@ -23,12 +23,16 @@ pip install -r requirements.txt
 * Download the VIST-DII url links [here](https://visionandlanguage.net/VIST/json_files/description-in-isolation/DII-with-labels.tar.gz)
 * Download the VIST images running
 ```shell
+PROJECT_PATH=/qfs/projects/oddite/tang584/ARLDM
+
 python data_script/vist_img_download.py
 --json_dir /path/to/dii_json_files
 --img_dir /path/to/save_images
 --num_process 32
 
-python data_script/vist_img_download.py --json_dir /qfs/projects/oddite/tang584/ARLDM/input_data/dii --img_dir /qfs/projects/oddite/tang584/ARLDM/input_data/visit_img --num_process 32
+python data_script/vist_img_download.py --json_dir $PROJECT_PATH/input_data/dii --img_dir $PROJECT_PATH/input_data/visit_img --num_process 32
+
+python data_script/vist_img_download.py --json_dir $PROJECT_PATH/input_data/dii --img_dir $PROJECT_PATH/input_data/visit_img --num_process 32
 ```
 * To accelerate I/O, using the following scrips to convert your downloaded data to HDF5
 ```shell
@@ -46,11 +50,15 @@ python data_script/vist_hdf5.py
 --img_dir /path/to/vist_images
 --save_path /path/to/save_hdf5_file
 
-python data_script/vist_hdf5.py --sis_json_dir /qfs/projects/oddite/tang584/ARLDM/input_data/sis --dii_json_dir /qfs/projects/oddite/tang584/ARLDM/input_data/dii --img_dir /qfs/projects/oddite/tang584/ARLDM/input_data/visit_img --save_path /qfs/projects/oddite/tang584/ARLDM/output_data/visit_out.h5
+python data_script/vist_hdf5.py --sis_json_dir $PROJECT_PATH/input_data/sis --dii_json_dir $PROJECT_PATH/input_data/dii --img_dir $PROJECT_PATH/input_data/visit_img --save_path $PROJECT_PATH/output_data/visit_out.h5
 
-python data_script/pororo_hdf5.py --data_dir /qfs/projects/oddite/tang584/ARLDM/input_data/pororo_png --save_path /qfs/projects/oddite/tang584/ARLDM/output_data/pororo_out.h5
+python data_script/pororo_hdf5.py --data_dir $PROJECT_PATH/input_data/pororo_png --save_path $PROJECT_PATH/output_data/pororo_out.h5
 
-python data_script/flintstones_hdf5.py --data_dir /qfs/projects/oddite/tang584/ARLDM/input_data/flintstones_data --save_path /qfs/projects/oddite/tang584/ARLDM/output_data/flintstones_out.h5
+python data_script/flintstones_hdf5.py --data_dir $PROJECT_PATH/input_data/flintstones_data --save_path $PROJECT_PATH/output_data/flintstones_out.h5
+
+python data_script/flintstones_hdf5.py \
+--data_dir /mnt/common/mtang11/experiments/ARLDM/input_data/flintstones_data \
+--save_path /mnt/common/mtang11/experiments/ARLDM/output_data/flintstones_out.h5
  ```
 
 ## Training

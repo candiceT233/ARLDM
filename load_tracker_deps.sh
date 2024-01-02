@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-module load openmpi/4.1.3
+# module load openmpi/4.1.3
 
 . $HOME/spack/share/spack/setup-env.sh
 spack load zlib

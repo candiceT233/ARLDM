@@ -12,10 +12,13 @@
 # --gres=gpu:8 -gres=gpu:1
 # --account=chess
 
-JOB_NAME=$(echo `scontrol show job $SLURM_JOB_ID | grep JobName` | grep -oP 'JobName=\K.*')
-# JOB_NAME="flintstones_train"
+# JOB_NAME=$(echo `scontrol show job $SLURM_JOB_ID | grep JobName` | grep -oP 'JobName=\K.*')
+JOB_NAME="flintstones_train"
 echo "Job Name: $JOB_NAME"
-# echo -e "network devices on node:\n $(ucx_info -d | grep Device)"
+# # check if JOB_NAMe is empty
+# if [ -z "$JOB_NAME" ]; then
+#     JOB_NAME="tracker_flintstones_train"
+# fi
 
 ## Prepare Slurm Host Names and IPs
 NODE_NAMES=`echo $SLURM_JOB_NODELIST|scontrol show hostnames`
@@ -39,10 +42,10 @@ echo "ib_hostlist: $ib_hostlist"
 
 
 # Base path variables
-FS_PREFIX="/qfs/projects/oddite/$USER" # NFS
+FS_PREFIX="/mnt/common/$USER/experiments" # NFS
 # FS_PREFIX="/rcfs/projects/chess/$USER" # PFS
 EXPERIMENT_PATH="$FS_PREFIX/ARLDM/output_data"
-ARLDM_SCRIPTS="$HOME/scripts/vlen_workflow/ARLDM"
+ARLDM_SCRIPTS="$HOME/scripts/hdf5_workflow/ARLDM"
 mkdir -p $EXPERIMENT_PATH
 
 # Config file variables
@@ -92,6 +95,7 @@ PREPARE_CONFIGS () {
     sed -i 's#DATASET#'${DATASET}#'g' "${config_file}"
     sed -i 's#'${DSET_VAR}'#'${HDF5_NAME}'#g' "${config_file}"
     sed -i 's#SAMPLE_OUT_DIR#'${SAMPLE_OUT_DIR}'#g' "${config_file}"
+    echo "Prepared config file: $config_file"
 
 }
 
@@ -99,29 +103,7 @@ RUN_TRAIN () {
 
     echo "Running training ..."
 
-    # # GPU variables
-    # # a100 enp226s0 ib1
-    # # dlt enp1s0f0 ib0
 
-    # module load cuda/10.0.130 # module load cuda/11.7 #cuda/10.0.130
-    # export NCCL_DEBUG=INFO # debugging flags (optional)
-    # export NCCL_IGNORE_DISABLED_P2P=1
-    # export PL_TORCH_DISTRIBUTED_BACKEND=nccl
-    # export PYTHONFAULTHANDLER=1
-    # export NCCL_P2P_DISABLE=1
-    # export NCCL_P2P_LEVEL=SYS
-    # export OMP_NUM_THREADS=1
-    # export fine_use_gpu=True
-    # export NCCL_SOCKET_IFNAME="ib1"
-    # export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:256,garbage_collection_threshold:0.5
-    # nvidia-smi
-
-
-    # TRACKER_SRC_DIR=/qfs/people/tang584/scripts/vol-tracker/build/src
-    TRACKER_SRC_DIR=/qfs/people/tang584/scripts/vol-tracker/build/src
-    VOL_NAME="tracker"
-
-    export HDF5_USE_FILE_LOCKING='FALSE' # TRUE FALSE BESTEFFORT
 
     export WORKFLOW_NAME="arldm_test"
     export PATH_FOR_TASK_FILES="/tmp/$USER/$WORKFLOW_NAME"
@@ -135,20 +117,14 @@ RUN_TRAIN () {
     
     # HDF5_VOL_CONNECTOR="under_vol=0;under_info={};path=${schema_file}" \
 
-    # Only VFD
     set -x
-    # LD_LIBRARY_PATH=$TRACKER_SRC_DIR/vfd:$LD_LIBRARY_PATH \
-
-    # ## VFD
-    # export CURR_TASK="arldm_train"
-    # export HDF5_DRIVER_CONFIG="true ${TRACKER_VFD_PAGE_SIZE}"
-    # export HDF5_DRIVER=hdf5_tracker_vfd
-    # export HDF5_LOG_FILE_PATH="${schema_file}"
-    # # export HDF5_PLUGIN_PATH=$TRACKER_SRC_DIR/vfd
 
     # ## VOL
-    export HDF5_VOL_CONNECTOR="${VOL_NAME} under_vol=0;under_info={};path=${schema_file};level=2;format="
-    export HDF5_PLUGIN_PATH=$TRACKER_SRC_DIR/vol:$HDF5_PLUGIN_PATH
+    # TRACKER_SRC_DIR=/mnt/common/mtang11/scripts/vol-tracker/build/src
+    # VOL_NAME="tracker"
+    # export HDF5_USE_FILE_LOCKING='FALSE' # TRUE FALSE BESTEFFORT
+    # export HDF5_VOL_CONNECTOR="${VOL_NAME} under_vol=0;under_info={};path=${schema_file};level=2;format="
+    # export HDF5_PLUGIN_PATH=$TRACKER_SRC_DIR/vol:$HDF5_PLUGIN_PATH
     # export HDF5_PLUGIN_PATH=$TRACKER_SRC_DIR/vfd:$TRACKER_SRC_DIR/vol:$HDF5_PLUGIN_PATH
 
 
@@ -158,7 +134,8 @@ RUN_TRAIN () {
     cd $ARLDM_SCRIPTS
 
 
-    srun -n1 --oversubscribe python main.py &> "$ARLDM_SCRIPTS/$JOB_NAME.log"
+    # srun -n1 --oversubscribe python main.py &> "$ARLDM_SCRIPTS/$JOB_NAME.log"
+    conda run -n arldm python main.py &> "$ARLDM_SCRIPTS/$JOB_NAME.log"
 
     echo "python main.py has exited"
 }
@@ -166,9 +143,9 @@ RUN_TRAIN () {
 
 hostname; date
 
-srun -n$SLURM_JOB_NUM_NODES -w $hostlist --oversubscribe sudo /sbin/sysctl vm.drop_caches=3
+# srun -n$SLURM_JOB_NUM_NODES -w $hostlist --oversubscribe sudo /sbin/sysctl vm.drop_caches=3
 
-source activate arldm
+# source activate arldm
 source ./load_tracker_deps.sh
 
 # srun -n1 -N1 $( MON_MEM ) &
