@@ -48,11 +48,11 @@ flintstones:
 vistsis:
   hdf5_file: VISTSIS_HDF5
   max_length: 100
-  clip_embedding_tokens: 4940
+  clip_embedding_tokens: 49408
   blip_embedding_tokens: 30524
 
 vistdii:
-  hdf5_file: VISTSIS_HDF5
+  hdf5_file: VISTDII_HDF5
   max_length: 65
   clip_embedding_tokens: 49408
   blip_embedding_tokens: 30524

@@ -13,8 +13,8 @@ from omegaconf import DictConfig
 from pl_bolts.optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_lightning.strategies import DDPStrategy # >=1.7.0
-# from pytorch_lightning.plugins import DDPPlugin
+from pytorch_lightning.strategies import DDPStrategy, SingleDeviceStrategy # >=1.7.0
+# from pytorch_lightning.plugins import DDPPlugin # <1.7.0
 from torch import nn
 from torch.utils.data import DataLoader # TODO: check possible to use h5py
 from torchvision import transforms
@@ -487,8 +487,9 @@ def train(args: DictConfig) -> None:
         logger=logger,
         log_every_n_steps=1,
         callbacks=callback_list,
+        fast_dev_run=1,
+        # strategy=SingleDeviceStrategy(device='cpu', accelerator=None, checkpoint_io=None, precision_plugin=None),
         strategy=DDPStrategy(find_unused_parameters=False),
-        fast_dev_run=5,
         # plugins=DDPPlugin(find_unused_parameters=False),
     )
     

@@ -1,24 +1,16 @@
 #!/bin/bash
 #SBATCH --job-name=tracker_flintstones_train
-#SBATCH --partition=short
+#SBATCH --nodelist=ares-comp-25
 #SBATCH --time=00:30:00
 #SBATCH -N 1
-#SBATCH --ntasks-per-node=2
+#SBATCH --ntasks-per-node=20
 #SBATCH --output=./%x_R.out
 #SBATCH --error=./%x_R.err
+#SBATCH --exclusive
 
-# -p a100_80_shared
-# --mem=0
-# --gres=gpu:8 -gres=gpu:1
-# --account=chess
 
-# JOB_NAME=$(echo `scontrol show job $SLURM_JOB_ID | grep JobName` | grep -oP 'JobName=\K.*')
-JOB_NAME="flintstones_train"
-echo "Job Name: $JOB_NAME"
-# # check if JOB_NAMe is empty
-# if [ -z "$JOB_NAME" ]; then
-#     JOB_NAME="tracker_flintstones_train"
-# fi
+
+set -x
 
 ## Prepare Slurm Host Names and IPs
 NODE_NAMES=`echo $SLURM_JOB_NODELIST|scontrol show hostnames`
@@ -44,23 +36,34 @@ echo "ib_hostlist: $ib_hostlist"
 # Base path variables
 FS_PREFIX="/mnt/common/$USER/experiments" # NFS
 # FS_PREFIX="/rcfs/projects/chess/$USER" # PFS
-EXPERIMENT_PATH="$FS_PREFIX/ARLDM/output_data"
+EXPERIMENT_PATH="$FS_PREFIX/ARLDM"
 ARLDM_SCRIPTS="$HOME/scripts/hdf5_workflow/ARLDM"
 mkdir -p $EXPERIMENT_PATH
 
 # Config file variables
 TEST_MODE="train" # train sample
 CKPT_DIR="$FS_PREFIX/ARLDM/save_ckpt"
+DATASET="vistdii" # pororo flintstones vistsis vistdii
+WORKERS=1
+# JOB_NAME=$(echo `scontrol show job $SLURM_JOB_ID | grep JobName` | grep -oP 'JobName=\K.*')
+JOB_NAME="${DATASET}_train"
+echo "Job Name: $JOB_NAME"
+# # check if JOB_NAMe is empty
+# if [ -z "$JOB_NAME" ]; then
+#     JOB_NAME="tracker_flintstones_train"
+# fi
+
+
 TEST_NAME="$JOB_NAME"
-DATASET="flintstones" # pororo flintstones vistsis vistdii
 SAMPLE_OUT_DIR="$EXPERIMENT_PATH/sample_out_$TEST_NAME"
 mkdir -p $SAMPLE_OUT_DIR
 mkdir -p $CKPT_DIR
 
+
+
 # Config files
 config_template="$ARLDM_SCRIPTS/config_template.yaml"
 config_file="$ARLDM_SCRIPTS/config.yaml"
-
 PREPARE_CONFIGS () {
 
     sed 's#MODE#'"${TEST_MODE}"'#g;s#CKPT_DIR#'"${CKPT_DIR}"'#g;s#TEST_NAME#'"${TEST_NAME}"'#g' "${config_template}" > "${config_file}"
@@ -117,7 +120,7 @@ RUN_TRAIN () {
     
     # HDF5_VOL_CONNECTOR="under_vol=0;under_info={};path=${schema_file}" \
 
-    set -x
+    
 
     # ## VOL
     # TRACKER_SRC_DIR=/mnt/common/mtang11/scripts/vol-tracker/build/src
@@ -135,7 +138,8 @@ RUN_TRAIN () {
 
 
     # srun -n1 --oversubscribe python main.py &> "$ARLDM_SCRIPTS/$JOB_NAME.log"
-    conda run -n arldm python main.py &> "$ARLDM_SCRIPTS/$JOB_NAME.log"
+    # conda run -v -n arldm python main.py
+    conda run -n arldm python main.py 
 
     echo "python main.py has exited"
 }
@@ -144,6 +148,8 @@ RUN_TRAIN () {
 hostname; date
 
 # srun -n$SLURM_JOB_NUM_NODES -w $hostlist --oversubscribe sudo /sbin/sysctl vm.drop_caches=3
+
+# eval "$(conda shell.bash hook)"
 
 # source activate arldm
 source ./load_tracker_deps.sh
@@ -156,12 +162,12 @@ PREPARE_CONFIGS
 
 start_time=$(($(date +%s%N)/1000000))
 
-RUN_TRAIN
+RUN_TRAIN 2>&1 | tee "$ARLDM_SCRIPTS/$JOB_NAME.log"
 
 duration=$(( $(date +%s%N)/1000000 - $start_time))
-echo "TRAINING done... $duration milliseconds elapsed."
+echo "TRAINING done... $duration milliseconds elapsed." | tee -a "$ARLDM_SCRIPTS/$JOB_NAME.log"
 
-hostname; date
+hostname; date | tee -a "$ARLDM_SCRIPTS/$JOB_NAME.log"
 sacct -j $SLURM_JOB_ID --format="JobID,JobName,Partition,CPUTime,AllocCPUS,State,ExitCode,MaxRSS,MaxVMSize"
 
 # echo ""
