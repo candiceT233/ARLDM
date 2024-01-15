@@ -16,7 +16,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.strategies import DDPStrategy, SingleDeviceStrategy # >=1.7.0
 # from pytorch_lightning.plugins import DDPPlugin # <1.7.0
 from torch import nn
-from torch.utils.data import DataLoader # TODO: check possible to use h5py
+from torch.utils.data import DataLoader
 from torchvision import transforms
 from transformers import CLIPTokenizer, CLIPTextModel
 
@@ -25,20 +25,14 @@ from models.blip_override.blip import blip_feature_extractor, init_tokenizer
 from models.diffusers_override.unet_2d_condition import UNet2DConditionModel
 from models.inception import InceptionV3
 
-# for evaluation I/O time
-import time
-
-# import gc
-# gc.collect()
-
-# import torch.distributed as dist
-# dist.init_process_group(
-#             backend="gloo",
-#             init_method="tcp://localhost:22234"
-#             rank=0)
-
+## Candice added codes start ========================================
+import time # for evaluation I/O time
 
 DEVICE="cpu"
+FAST_BATCHES=5
+PRETRAIN_MODEL_PATH="/mnt/common/mtang11/experiments/ARLDM/input_data/model_large.pth" # 3.63 GB
+PRETRAIN_MODEL_LINK="https://storage.googleapis.com/sfr-vision-language-research/BLIP/models/model_large.pth" # 3.63 GB
+# PRETRAIN_MODEL_LINK="https://storage.googleapis.com/sfr-vision-language-research/BLIP/models/model*_base_caption.pth" # 896 MB, not quite working
 
 
 def humansize(nbytes):
@@ -49,7 +43,6 @@ def humansize(nbytes):
             nbytes /= 1000.
             i += 1
         f = ('%.2f' % nbytes).rstrip('0').rstrip('.')
-
         return '%s %s' % (f, suffixes[i])
     else:
         return 0
@@ -68,6 +61,17 @@ if DEVICE == "gpu":
     print("global_free_gpu: ", humansize(global_free_gpu), ", total_gpu_mem: ", humansize(total_gpu_mem))
     torch.cuda.empty_cache()
     torch.set_float32_matmul_precision('medium')
+
+# Get environment variable HDF5_PLUGIN_PATH
+hdf5_plugin_path = os.environ.get('HDF5_PLUGIN_PATH')
+hdf5_lock = os.environ.get('HDF5_USE_FILE_LOCKING')
+hdf5_driver = os.environ.get('HDF5_DRIVER')
+print('ARLDM main.py: HDF5_USE_FILE_LOCKING: {}'.format(hdf5_lock))
+print('ARLDM main.py: HDF5_PLUGIN_PATH: {}'.format(hdf5_plugin_path))
+print('ARLDM main.py: HDF5_DRIVER: {}'.format(hdf5_driver))
+
+## Candice added codes end ========================================
+
 
 class LightningDataset(pl.LightningDataModule):
     def __init__(self, args: DictConfig):
@@ -176,9 +180,19 @@ class ARLDM(pl.LightningModule):
 
         self.modal_type_embeddings = nn.Embedding(2, 768)
         self.time_embeddings = nn.Embedding(5, 768)
-        self.mm_encoder = blip_feature_extractor(
-            pretrained='https://storage.googleapis.com/sfr-vision-language-research/BLIP/models/model_large.pth',
-            image_size=224, vit='large')
+        print("Extracting pretrained ...")
+
+        if not os.path.exists(PRETRAIN_MODEL_PATH):
+            # download the model
+            self.mm_encoder = blip_feature_extractor(
+                pretrained=PRETRAIN_MODEL_LINK,
+                image_size=224, vit='large') 
+        else:
+            self.mm_encoder = blip_feature_extractor(
+                pretrained=PRETRAIN_MODEL_PATH,
+                image_size=224, vit='large')
+        print("Extract pretrained done ...")
+        
         self.mm_encoder.text_encoder.resize_token_embeddings(args.get(args.dataset).blip_embedding_tokens)
 
         self.vae = AutoencoderKL.from_pretrained('runwayml/stable-diffusion-v1-5', subfolder="vae")
@@ -469,7 +483,7 @@ def train(args: DictConfig) -> None:
     checkpoint_callback = ModelCheckpoint(
         dirpath=os.path.join(args.ckpt_dir, args.run_name),
         # save_top_k=0,
-        save_top_k=1,
+        save_top_k=-1,
         save_last=True
     )
 
@@ -487,11 +501,12 @@ def train(args: DictConfig) -> None:
         logger=logger,
         log_every_n_steps=1,
         callbacks=callback_list,
-        fast_dev_run=1,
-        # strategy=SingleDeviceStrategy(device='cpu', accelerator=None, checkpoint_io=None, precision_plugin=None),
+        fast_dev_run=FAST_BATCHES,
         strategy=DDPStrategy(find_unused_parameters=False),
-        # plugins=DDPPlugin(find_unused_parameters=False),
+        # strategy=SingleDeviceStrategy(device='cpu', accelerator=None, checkpoint_io=None, precision_plugin=None),
+        # plugins=DDPPlugin(find_unused_parameters=False), # torch <=1.7.0
     )
+    
     
     # check_gpu_mem(logger)
     
@@ -506,8 +521,8 @@ def sample(args: DictConfig) -> None:
     model = ARLDM.load_from_checkpoint(args.test_model_file, args=args, strict=False)
 
     predictor = pl.Trainer(
-        accelerator='gpu',
-        devices=args.gpu_ids,
+        accelerator=DEVICE,
+        # devices=args.gpu_ids,
         max_epochs=-1,
         benchmark=True
     )
