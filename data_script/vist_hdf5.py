@@ -36,15 +36,16 @@ def main(args):
         deletables = []
         for story_id, story in whole_album[p].items():
             if story['length'] != 5:
-                print("deleting {}".format(story_id))
+                # print("deleting {}".format(story_id))
                 deletables.append(story_id)
                 continue
             d = [os.path.exists(os.path.join(args.img_dir, "{}.jpg".format(_))) for _ in story["flickr_id"]]
             if sum(d) < 5:
-                print("deleting {}".format(story_id))
+                # print("deleting {}".format(story_id))
                 deletables.append(story_id)
             else:
                 pass
+        print(f"deletables : {deletables}")
         for i in deletables:
             del whole_album[p][i]
 
@@ -102,6 +103,10 @@ def main(args):
 
 
 if __name__ == '__main__':
+    # Get environment variable HDF5_PLUGIN_PATH
+    hdf5_plugin_path = os.environ.get('HDF5_PLUGIN_PATH')
+    print('ARLDM data_script: HDF5_PLUGIN_PATH: {}'.format(hdf5_plugin_path))
+    
     parser = argparse.ArgumentParser(description='arguments for vist hdf5 file saving')
     parser.add_argument('--sis_json_dir', type=str, required=True, help='sis json file directory')
     parser.add_argument('--dii_json_dir', type=str, required=True, help='dii json file directory')
