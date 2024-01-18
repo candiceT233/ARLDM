@@ -46,6 +46,9 @@ def main(args):
             else:
                 pass
         # print(f"deletables : {deletables}")
+        # only the first 10 number in deletables
+        print(f"deletables : {deletables[:10]} (total {len(deletables)}))")
+        
         for i in deletables:
             del whole_album[p][i]
 
