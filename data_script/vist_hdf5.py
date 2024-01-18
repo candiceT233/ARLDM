@@ -45,7 +45,7 @@ def main(args):
                 deletables.append(story_id)
             else:
                 pass
-        print(f"deletables : {deletables}")
+        # print(f"deletables : {deletables}")
         for i in deletables:
             del whole_album[p][i]
 
@@ -102,11 +102,7 @@ def main(args):
     f.close()
 
 
-if __name__ == '__main__':
-    # Get environment variable HDF5_PLUGIN_PATH
-    hdf5_plugin_path = os.environ.get('HDF5_PLUGIN_PATH')
-    print('ARLDM data_script: HDF5_PLUGIN_PATH: {}'.format(hdf5_plugin_path))
-    
+if __name__ == '__main__':    
     parser = argparse.ArgumentParser(description='arguments for vist hdf5 file saving')
     parser.add_argument('--sis_json_dir', type=str, required=True, help='sis json file directory')
     parser.add_argument('--dii_json_dir', type=str, required=True, help='dii json file directory')
