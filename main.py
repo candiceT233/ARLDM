@@ -30,7 +30,9 @@ import time # for evaluation I/O time
 
 DEVICE="cpu"
 FAST_BATCHES=5
-PRETRAIN_MODEL_PATH="/mnt/common/mtang11/experiments/ARLDM/input_data/model_large.pth" # 3.63 GB
+# try and get PRETRAIN_MODEL_PATH from environment variable
+PRETRAIN_MODEL_PATH = os.environ.get('PRETRAIN_MODEL_PATH')
+# PRETRAIN_MODEL_PATH="/mnt/common/mtang11/experiments/ARLDM/input_data/model_large.pth" # 3.63 GB
 PRETRAIN_MODEL_LINK="https://storage.googleapis.com/sfr-vision-language-research/BLIP/models/model_large.pth" # 3.63 GB
 # PRETRAIN_MODEL_LINK="https://storage.googleapis.com/sfr-vision-language-research/BLIP/models/model*_base_caption.pth" # 896 MB, not quite working
 
@@ -182,11 +184,11 @@ class ARLDM(pl.LightningModule):
         self.time_embeddings = nn.Embedding(5, 768)
         print("Extracting pretrained ...")
 
-        if not os.path.exists(PRETRAIN_MODEL_PATH):
+        if PRETRAIN_MODEL_PATH == None or not os.path.exists(PRETRAIN_MODEL_PATH):
             # download the model
             self.mm_encoder = blip_feature_extractor(
                 pretrained=PRETRAIN_MODEL_LINK,
-                image_size=224, vit='large') 
+                image_size=224, vit='large')
         else:
             self.mm_encoder = blip_feature_extractor(
                 pretrained=PRETRAIN_MODEL_PATH,
