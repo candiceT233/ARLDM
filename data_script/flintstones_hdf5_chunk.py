@@ -11,6 +11,18 @@ from tqdm import tqdm
 import time
 
 import os
+def get_chunk_shape():
+    chunk_shape = os.getenv("CHUNK_NUM")
+    if chunk_shape == None:
+        print("CHUNK_NUM is not a valid integer, set to Auto")
+        chunk_shape = True
+    else:
+        # chunk_shape = (int(chunk_shape),)
+        # chunk_shape = (1,int(chunk_shape))
+        chunk_shape = int(chunk_shape)
+    
+    print("Chunk shape:", chunk_shape)
+    return chunk_shape
 
 def main(args):
     splits = json.load(open(os.path.join(args.data_dir, 'train-val-test_split.json'), 'r'))
@@ -20,7 +32,7 @@ def main(args):
     descriptions = dict()
     for sample in annotations:
         descriptions[sample["globalID"]] = sample["description"]
-    
+
     # Shorten train_ids, val_ids, and test_ids for testing purposes
     train_ids = train_ids[:4000]
     val_ids = val_ids[:400]
@@ -33,10 +45,12 @@ def main(args):
     for subset, ids in {'train': train_ids, 'val': val_ids, 'test': test_ids}.items():
         ids = [i for i in ids if i in followings and len(followings[i]) == 4]
         length = len(ids)
+
         group = f.create_group(subset)
         images = list()
         for i in range(5):
-            images.append(group.create_dataset('image{}'.format(i), (length,), dtype=h5py.vlen_dtype(np.dtype('uint8'))))
+            # images.append(group.create_dataset('image{}'.format(i), (length,), dtype=h5py.vlen_dtype(np.dtype('uint8'))))
+            images.append(group.create_dataset('image{}'.format(i), (length,), dtype=h5py.vlen_dtype(np.dtype('uint8')), chunks=get_chunk_shape()))
         text = group.create_dataset('text', (length,), dtype=h5py.string_dtype(encoding='utf-8'))
         for i, item in enumerate(tqdm(ids, leave=True, desc="saveh5")):
             globalIDs = [item] + followings[item]

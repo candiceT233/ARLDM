@@ -478,7 +478,7 @@ def train(args: DictConfig) -> None:
     
     dataloader = LightningDataset(args)
     dataloader.setup('fit')
-
+    
     model = ARLDM(args, steps_per_epoch=dataloader.get_length_of_train_dataloader())
 
     logger = TensorBoardLogger(save_dir=os.path.join(args.ckpt_dir, args.run_name), name='log', default_hp_metric=False)
